@@ -43,6 +43,20 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>2.2.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.openapitools</groupId>
+            <artifactId>jackson-databind-nullable</artifactId>
+            <version>0.2.6</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -61,7 +75,7 @@
                             <goal>generate</goal>
                         </goals>
                         <configuration>
-                            <inputSpec>classpath:/api-document/ViewingService.yaml</inputSpec>
+                            <inputSpec>file:${project.basedir}/src/main/resources/api-document/ViewingService.yaml</inputSpec>
                             <generatorName>spring</generatorName>
                             <addCompileSourceRoot>true</addCompileSourceRoot>
                             <skipValidateSpec>true</skipValidateSpec>

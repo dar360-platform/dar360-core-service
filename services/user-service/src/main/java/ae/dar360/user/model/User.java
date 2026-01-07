@@ -14,6 +14,8 @@ import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.OffsetDateTime;
+import java.time.LocalDateTime;
+import ae.dar360.user.enums.Dar360Role;
 import java.util.UUID;
 
 @Entity

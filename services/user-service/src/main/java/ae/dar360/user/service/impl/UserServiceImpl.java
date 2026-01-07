@@ -1029,4 +1029,60 @@ public class UserServiceImpl implements UserService {
         log.info("Session valid, returning user: {}", userSessionInfo.getEmail());
         return getUserByEmail(userSessionInfo.getEmail());
     }
+
+    @Override
+    public UserResponse register(UserRegisterRequest registerRequest) {
+        // Placeholder implementation for register
+        // This will need actual business logic later.
+        log.warn("register() method is not fully implemented and returns null.");
+        return null;
+    }
+
+    @Override
+    public void verifyRera(ReraVerificationRequest verificationRequest) {
+        // Placeholder implementation for verifyRera
+        // This will need actual business logic later.
+        log.warn("verifyRera() method is not fully implemented.");
+        // Potentially, this method could update user's RERA verification status or throw an exception.
+    }
+
+    @Override
+    public UserResponse inviteOwner(OwnerInviteRequest inviteRequest) {
+        // Placeholder implementation for inviteOwner
+        // This will need actual business logic later.
+        log.warn("inviteOwner() method is not fully implemented and returns null.");
+        return null; // Or throw an UnsupportedOperationException
+    }
+
+    @Override
+    public List<UserResponse> getInvitedOwners() {
+        // Placeholder implementation: return an empty list as there's no direct repository method for this yet.
+        log.warn("getInvitedOwners() method is not fully implemented and returns an empty list.");
+        return new ArrayList<>();
+    }
+
+    @Override
+    public UserResponse getCurrentUser() {
+        log.info("Attempting to retrieve current user from request header.");
+        String userEmail = null;
+        try {
+            if (null != this.request) {
+                userEmail = request.getHeader("x-username"); // Assuming email is passed in x-username header
+                if (StringUtils.isBlank(userEmail)) {
+                    // Fallback to x-email if x-username is not present
+                    userEmail = request.getHeader("x-email");
+                }
+            }
+        } catch (final Exception e) {
+            log.warn("Could not retrieve user email from request header: {}", e.getMessage());
+        }
+
+        if (StringUtils.isBlank(userEmail)) {
+            log.error("No user email found in request headers for current user.");
+            throw new ValidationException(AlertMessages.alert(ValidationAlertEnum.UNAUTHORIZED));
+        }
+
+        log.debug("Found current user email: {}", userEmail);
+        return getUserByEmail(userEmail);
+    }
 }
