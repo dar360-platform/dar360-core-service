@@ -1,0 +1,73 @@
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      routes:
+        - id: user-service
+          uri: http://localhost:8081 # Using direct URL for now, can be lb://user-service with Eureka
+          predicates:
+            - Path=/api/auth/**, /api/users/**
+        - id: property-service
+          uri: http://localhost:8082
+          predicates:
+            - Path=/api/properties/**
+        - id: viewing-service
+          uri: http://localhost:8083
+          predicates:
+            - Path=/api/viewings/**
+        - id: contract-service
+          uri: http://localhost:8084
+          predicates:
+            - Path=/api/contracts/**
+        - id: notification-service
+          uri: http://localhost:8085
+          predicates:
+            - Path=/api/notifications/**
+      default-filters:
+        - DedupeResponseHeader=Vary Access-Control-Allow-Origin Access-Control-Request-Method Access-Control-Request-Headers, RETAIN_UNIQUE
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins: "*" # Adjust in production
+            allowedMethods: "*"
+            allowedHeaders: "*"
+            allowCredentials: true
+            maxAge: 3600
+  redis:
+    host: localhost
+    port: 6379
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: http://localhost:8081/oauth2/jwks # Placeholder, replace with actual auth server JWKS endpoint
+
+server:
+  port: 8080
+
+# Rate limiting configuration
+resilience4j:
+  ratelimiter:
+    instances:
+      default:
+        limitForPeriod: 100
+        limitRefreshPeriod: 60s
+        timeoutDuration: 0s
+      auth-endpoints:
+        limitForPeriod: 10
+        limitRefreshPeriod: 60s
+        timeoutDuration: 0s
+      otp-endpoints:
+        limitForPeriod: 5
+        limitRefreshPeriod: 60s
+        timeoutDuration: 0s
+
+# Public endpoints (no auth required)
+public-paths:
+  - /api/auth/login
+  - /api/auth/register
+  - /api/auth/refresh
+  - /api/properties/share/**
+  - /api/contracts/*/verify-otp
+  - /actuator/health

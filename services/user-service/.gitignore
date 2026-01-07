@@ -1,9 +1,5 @@
 # Build output
 target/
-*.jar
-*.war
-*.zip
-*.class
 
 # Local database files
 data/
@@ -16,14 +12,6 @@ data/
 .idea/
 *.iml
 .vscode/
-.project
-.settings
-.classpath
 
 # Log files
 *.log
-hs_err_pid*.log
-
-# Other temporary files
-*.bak
-*.swp

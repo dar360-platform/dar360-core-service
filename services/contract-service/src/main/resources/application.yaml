@@ -1,0 +1,22 @@
+spring:
+  application:
+    name: contract-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/dar360
+    username: dar360
+    password: dar360_dev
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+  flyway:
+    enabled: false
+server:
+  port: 8084
+  servlet:
+    context-path: /api/contracts
+services:
+  user:
+    url: http://localhost:8081
+  property:
+    url: http://localhost:8082
