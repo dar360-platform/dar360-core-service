@@ -1,0 +1,275 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+}
+
+// ==================== ENUMS ====================
+
+enum Dar360Role {
+  AGENT
+  OWNER
+  TENANT
+}
+
+enum PropertyType {
+  APARTMENT
+  VILLA
+  TOWNHOUSE
+  PENTHOUSE
+  STUDIO
+  DUPLEX
+  OFFICE
+  RETAIL
+  WAREHOUSE
+}
+
+enum PropertyStatus {
+  DRAFT
+  AVAILABLE
+  RESERVED
+  RENTED
+  MAINTENANCE
+  UNLISTED
+}
+
+enum RentFrequency {
+  YEARLY
+  MONTHLY
+  QUARTERLY
+}
+
+enum ViewingStatus {
+  SCHEDULED
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum ViewingOutcome {
+  INTERESTED
+  NOT_INTERESTED
+  FOLLOW_UP
+  APPLICATION_SUBMITTED
+  PENDING
+}
+
+enum ContractStatus {
+  DRAFT
+  PENDING_SIGNATURE
+  SIGNED
+  ACTIVE
+  EXPIRED
+  TERMINATED
+}
+
+// ==================== MODELS ====================
+
+model User {
+  id                 String    @id @default(cuid())
+  email              String    @unique
+  passwordHash       String    @map("password_hash")
+  role               Dar360Role @default(TENANT) @map("dar360_role")
+  fullName           String    @map("full_name")
+  phone              String
+  
+  // Agent-specific fields
+  reraLicenseNumber  String?   @map("rera_license_number")
+  reraVerifiedAt     DateTime? @map("rera_verified_at")
+  agencyName         String?   @map("agency_name")
+  
+  // Owner invitation
+  invitedById        String?   @map("invited_by")
+  invitedBy          User?     @relation("InvitedUsers", fields: [invitedById], references: [id])
+  invitedUsers       User[]    @relation("InvitedUsers")
+  
+  isActive           Boolean   @default(true) @map("is_active")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  
+  // Relations
+  agentProperties    Property[] @relation("AgentProperties")
+  ownerProperties    Property[] @relation("OwnerProperties")
+  viewings           Viewing[]
+  agentContracts     Contract[] @relation("AgentContracts")
+  ownerContracts     Contract[] @relation("OwnerContracts")
+  propertyShares     PropertyShare[]
+  
+  @@map("users")
+}
+
+model Property {
+  id             String         @id @default(cuid())
+  
+  agentId        String         @map("agent_id")
+  agent          User           @relation("AgentProperties", fields: [agentId], references: [id])
+  
+  ownerId        String?        @map("owner_id")
+  owner          User?          @relation("OwnerProperties", fields: [ownerId], references: [id])
+  
+  title          String
+  description    String?        @db.Text
+  type           PropertyType
+  status         PropertyStatus @default(DRAFT)
+  
+  bedrooms       Int
+  bathrooms      Int
+  areaSqft       Decimal?       @map("area_sqft") @db.Decimal(10, 2)
+  
+  rentAmount     Decimal        @map("rent_amount") @db.Decimal(12, 2)
+  rentFrequency  RentFrequency  @default(YEARLY) @map("rent_frequency")
+  depositAmount  Decimal?       @map("deposit_amount") @db.Decimal(12, 2)
+  
+  addressLine    String         @map("address_line")
+  buildingName   String?        @map("building_name")
+  areaName       String?        @map("area_name")
+  city           String         @default("Dubai")
+  latitude       Decimal?       @db.Decimal(10, 8)
+  longitude      Decimal?       @db.Decimal(11, 8)
+  
+  amenities      String[]       @default([])
+  permitNumber   String?        @map("permit_number")
+  
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  
+  // Relations
+  images         PropertyImage[]
+  shares         PropertyShare[]
+  viewings       Viewing[]
+  contracts      Contract[]
+  
+  @@index([agentId])
+  @@index([ownerId])
+  @@index([status])
+  @@index([type])
+  @@index([areaName])
+  @@map("properties")
+}
+
+model PropertyImage {
+  id           String   @id @default(cuid())
+  
+  propertyId   String   @map("property_id")
+  property     Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  
+  url          String
+  s3Key        String   @map("s3_key")
+  isPrimary    Boolean  @default(false) @map("is_primary")
+  displayOrder Int      @default(0) @map("display_order")
+  
+  createdAt    DateTime @default(now()) @map("created_at")
+  
+  @@index([propertyId])
+  @@map("property_images")
+}
+
+model PropertyShare {
+  id            String    @id @default(cuid())
+  
+  propertyId    String    @map("property_id")
+  property      Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  
+  agentId       String    @map("agent_id")
+  agent         User      @relation(fields: [agentId], references: [id])
+  
+  shareToken    String    @unique @map("share_token")
+  channel       String    @default("WHATSAPP")
+  clicks        Int       @default(0)
+  lastClickedAt DateTime? @map("last_clicked_at")
+  
+  createdAt     DateTime  @default(now()) @map("created_at")
+  
+  @@index([shareToken])
+  @@index([propertyId])
+  @@map("property_shares")
+}
+
+model Viewing {
+  id           String          @id @default(cuid())
+  
+  propertyId   String          @map("property_id")
+  property     Property        @relation(fields: [propertyId], references: [id])
+  
+  agentId      String          @map("agent_id")
+  agent        User            @relation(fields: [agentId], references: [id])
+  
+  tenantName   String          @map("tenant_name")
+  tenantPhone  String          @map("tenant_phone")
+  tenantEmail  String?         @map("tenant_email")
+  
+  scheduledAt  DateTime        @map("scheduled_at")
+  status       ViewingStatus   @default(SCHEDULED)
+  outcome      ViewingOutcome?
+  notes        String?         @db.Text
+  
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt @map("updated_at")
+  
+  @@index([propertyId])
+  @@index([agentId])
+  @@index([scheduledAt])
+  @@map("viewings")
+}
+
+model Contract {
+  id                String         @id @default(cuid())
+  contractNumber    String         @unique @map("contract_number")
+  
+  propertyId        String         @map("property_id")
+  property          Property       @relation(fields: [propertyId], references: [id])
+  
+  agentId           String         @map("agent_id")
+  agent             User           @relation("AgentContracts", fields: [agentId], references: [id])
+  
+  ownerId           String?        @map("owner_id")
+  owner             User?          @relation("OwnerContracts", fields: [ownerId], references: [id])
+  
+  // Tenant info (not linked to User as tenant may not be registered)
+  tenantName        String         @map("tenant_name")
+  tenantPhone       String         @map("tenant_phone")
+  tenantEmail       String         @map("tenant_email")
+  tenantEmiratesId  String         @map("tenant_emirates_id")
+  
+  startDate         DateTime       @map("start_date") @db.Date
+  endDate           DateTime       @map("end_date") @db.Date
+  rentAmount        Decimal        @map("rent_amount") @db.Decimal(12, 2)
+  depositAmount     Decimal        @map("deposit_amount") @db.Decimal(12, 2)
+  paymentTerms      String?        @map("payment_terms")
+  
+  status            ContractStatus @default(DRAFT)
+  
+  pdfUrl            String?        @map("pdf_url")
+  signedPdfUrl      String?        @map("signed_pdf_url")
+  
+  otpCode           String?        @map("otp_code")
+  otpExpiresAt      DateTime?      @map("otp_expires_at")
+  otpAttempts       Int            @default(0) @map("otp_attempts")
+  
+  signedAt          DateTime?      @map("signed_at")
+  signedIp          String?        @map("signed_ip")
+  
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+  
+  @@index([propertyId])
+  @@index([agentId])
+  @@index([status])
+  @@map("contracts")
+}
+
+model NotificationLog {
+  id          String   @id @default(cuid())
+  type        String   // SMS, EMAIL, WHATSAPP
+  recipient   String
+  template    String
+  status      String   // SENT, FAILED, PENDING
+  externalId  String?  @map("external_id")
+  error       String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  
+  @@map("notification_logs")
+}
