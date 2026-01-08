@@ -1,6 +1,8 @@
 import prisma from '@/lib/db';
 import { Dar360Role, User } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { nanoid } from 'nanoid';
+import { notificationService } from './notification.service';
 
 export class UserService {
   async createUser(data: {
@@ -36,9 +38,66 @@ export class UserService {
         isActive: true,
         invitedById: true,
         updatedAt: true,
+        resetToken: true,
+        resetTokenExpiresAt: true,
       },
     });
     return user;
+  }
+
+  // ... (previous methods)
+
+  async forgotPassword(email: string): Promise<void> {
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+    });
+
+    if (!user) return; // Do nothing if user not found for security
+
+    const resetToken = nanoid(32);
+    const resetTokenExpiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        resetToken,
+        resetTokenExpiresAt,
+      },
+    });
+
+    const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL}/auth/reset-password?token=${resetToken}`;
+    
+    await notificationService.sendEmail(
+      user.email,
+      'Reset your password',
+      `<p>Click <a href="${resetUrl}">here</a> to reset your password. This link is valid for 1 hour.</p>`,
+      'PASSWORD_RESET',
+      `Click this link to reset your password: ${resetUrl}`
+    );
+  }
+
+  async resetPassword(token: string, newPasswordPlain: string): Promise<void> {
+    const user = await prisma.user.findFirst({
+      where: {
+        resetToken: token,
+        resetTokenExpiresAt: { gt: new Date() },
+      },
+    });
+
+    if (!user) {
+      throw new Error('Invalid or expired token');
+    }
+
+    const passwordHash = await bcrypt.hash(newPasswordPlain, 12);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+        resetToken: null,
+        resetTokenExpiresAt: null,
+      },
+    });
   }
 
   async verifyRera(userId: string, reraLicenseNumber: string, agencyName: string): Promise<User> {
@@ -89,6 +148,8 @@ export class UserService {
           createdAt: true,
           invitedById: true,
           updatedAt: true,
+          resetToken: true,
+          resetTokenExpiresAt: true,
         },
       }),
       prisma.user.count({ where }),
@@ -124,6 +185,8 @@ export class UserService {
         invitedById: true,
         createdAt: true,
         updatedAt: true,
+        resetToken: true,
+        resetTokenExpiresAt: true,
       },
     });
     return user;

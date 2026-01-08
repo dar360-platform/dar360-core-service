@@ -11,23 +11,59 @@ export const authOptions: NextAuthOptions = {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Password', type: 'password' },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) {
           throw new Error('Invalid credentials');
         }
 
+        const email = credentials.email.toLowerCase();
+        // Try to get IP and User Agent from request if available (requires passing req to authorize)
+        // Note: NextAuth `req` in authorize might be limited depending on setup.
+        const ipAddress = (req as any)?.headers?.['x-forwarded-for'] || (req as any)?.ip || 'unknown';
+        const userAgent = (req as any)?.headers?.['user-agent'] || 'unknown';
+
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email.toLowerCase() },
+          where: { email },
         });
 
         if (!user || !user.isActive) {
+          await prisma.loginHistory.create({
+            data: {
+              email,
+              ipAddress,
+              userAgent,
+              status: 'FAILURE',
+              reason: user ? 'Account inactive' : 'User not found',
+            },
+          });
           throw new Error('Invalid credentials');
         }
 
         const isValid = await bcrypt.compare(credentials.password, user.passwordHash);
         if (!isValid) {
+          await prisma.loginHistory.create({
+            data: {
+              userId: user.id,
+              email,
+              ipAddress,
+              userAgent,
+              status: 'FAILURE',
+              reason: 'Invalid password',
+            },
+          });
           throw new Error('Invalid credentials');
         }
+
+        // Log successful login
+        await prisma.loginHistory.create({
+          data: {
+            userId: user.id,
+            email,
+            ipAddress,
+            userAgent,
+            status: 'SUCCESS',
+          },
+        });
 
         return {
           id: user.id,
