@@ -9,7 +9,7 @@ target/
 data/
 
 # Environment-specific properties
-.env.properties
+.env
 
 # IDE/tool specific
 .claude/
