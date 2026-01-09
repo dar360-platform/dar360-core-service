@@ -13,6 +13,8 @@ export function middleware(request: NextRequest) {
     'http://localhost:8080',  // Frontend dev server
     'http://localhost:8081',  // Frontend dev server (alternate port)
     'http://localhost:3000',  // Backend itself
+    'https://dar360.ae',      // Production frontend
+    'https://www.dar360.ae',  // Production frontend (www)
     process.env.NEXT_PUBLIC_FRONTEND_URL,
   ].filter(Boolean);
 
