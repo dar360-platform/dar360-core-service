@@ -7,14 +7,17 @@ import { HttpError } from "@/lib/errors";
 import {
   createUserSchema,
   currentUserUpdateSchema,
+  forgotPasswordSchema,
   ownerInviteSchema,
   registerSchema,
+  resetPasswordSchema,
   updateUserSchema,
   userFiltersSchema,
   verifyReraSchema,
 } from "@/schemas/user.schema";
 
 const SALT_ROUNDS = 10;
+const PASSWORD_RESET_EXPIRATION_MINUTES = 60;
 
 export type PublicUser = Omit<User, "passwordHash">;
 
@@ -158,14 +161,66 @@ export async function updateCurrentUser(userId: string, payload: unknown) {
 
 export async function verifyRera(userId: string, payload: unknown) {
   const data = verifyReraSchema.parse(payload);
+  const licenseNumber = data.licenseNumber ?? data.reraNumber;
+  if (!licenseNumber) {
+    throw new HttpError(400, "License number is required");
+  }
   const user = await prisma.user.update({
     where: { id: userId },
     data: {
-      reraLicenseNumber: data.licenseNumber,
+      reraLicenseNumber: licenseNumber,
       reraVerifiedAt: new Date(),
     },
   });
   return toPublicUser(user);
+}
+
+export async function requestPasswordReset(payload: unknown) {
+  const { email } = forgotPasswordSchema.parse(payload);
+  const normalized = email.toLowerCase();
+  const user = await prisma.user.findUnique({ where: { email: normalized } });
+
+  if (!user || !user.isActive) {
+    return { success: true };
+  }
+
+  await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
+
+  const token = crypto.randomBytes(32).toString("hex");
+  const expiresAt = new Date(Date.now() + PASSWORD_RESET_EXPIRATION_MINUTES * 60_000);
+  await prisma.passwordResetToken.create({
+    data: {
+      token,
+      userId: user.id,
+      expiresAt,
+    },
+  });
+
+  if (process.env.NODE_ENV !== "production") {
+    console.info(`[password-reset] Generated token for ${normalized}: ${token}`);
+    return { success: true, token };
+  }
+
+  return { success: true };
+}
+
+export async function resetPassword(payload: unknown) {
+  const { token, password } = resetPasswordSchema.parse(payload);
+  const tokenRecord = await prisma.passwordResetToken.findUnique({ where: { token } });
+
+  if (!tokenRecord || tokenRecord.expiresAt.getTime() < Date.now()) {
+    throw new HttpError(400, "Invalid or expired token");
+  }
+
+  const hashedPassword = await hashPassword(password);
+  const updatedUser = await prisma.user.update({
+    where: { id: tokenRecord.userId },
+    data: { passwordHash: hashedPassword },
+  });
+
+  await prisma.passwordResetToken.deleteMany({ where: { userId: tokenRecord.userId } });
+
+  return toPublicUser(updatedUser);
 }
 
 export async function inviteOwner(inviterId: string, payload: unknown) {

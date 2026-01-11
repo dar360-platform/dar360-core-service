@@ -6,6 +6,8 @@ import type { AuthUser } from "@/lib/auth";
 import * as userService from "@/services/user.service";
 import { POST as registerPOST } from "@/app/api/auth/register/route";
 import { POST as logoutPOST } from "@/app/api/auth/logout/route";
+import { POST as forgotPasswordPOST } from "@/app/api/auth/forgot-password/route";
+import { POST as resetPasswordPOST } from "@/app/api/auth/reset-password/route";
 import { GET as usersGET, POST as usersPOST } from "@/app/api/users/route";
 import {
   GET as userDetailGET,
@@ -82,6 +84,38 @@ describe("API Routes", () => {
     );
 
     expect(res.status).toBe(409);
+  });
+
+  it("requests password reset", async () => {
+    vi.spyOn(userService, "requestPasswordReset").mockResolvedValueOnce({ success: true, token: "reset-token" });
+
+    const res = await forgotPasswordPOST(
+      createRequest<typeof forgotPasswordPOST>("http://localhost/api/auth/forgot-password", {
+        method: "POST",
+        body: { email: "user@example.com" },
+      }),
+    );
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json).toMatchObject({ success: true });
+  });
+
+  it("resets password", async () => {
+    vi.spyOn(userService, "resetPassword").mockResolvedValueOnce(
+      toPublicUser(createUserFixture({ id: "user-1", email: "user@example.com" })),
+    );
+
+    const res = await resetPasswordPOST(
+      createRequest<typeof resetPasswordPOST>("http://localhost/api/auth/reset-password", {
+        method: "POST",
+        body: { token: "reset-token", password: "NewPass123!" },
+      }),
+    );
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json).toMatchObject({ id: "user-1" });
   });
 
   it("clears auth cookies on logout", async () => {
@@ -239,7 +273,7 @@ describe("API Routes", () => {
     const res = await verifyReraPOST(
       createRequest<typeof verifyReraPOST>("http://localhost/api/users/verify-rera", {
         method: "POST",
-        body: { licenseNumber: "RERA-123" },
+        body: { reraNumber: "RERA-123" },
       }),
     );
     const json = await res.json();

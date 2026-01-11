@@ -16,16 +16,24 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
   }
 }
 
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+async function handleUpdate(request: NextRequest, userId: string) {
   try {
     await requireUser([Dar360Role.AGENT]);
     const payload = await request.json();
-    const user = await updateUser(params.id, payload);
+    const user = await updateUser(userId, payload);
     return NextResponse.json(user);
   } catch (error) {
     const { status, body } = toErrorResponse(error);
     return NextResponse.json(body, { status });
   }
+}
+
+export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+  return handleUpdate(request, params.id);
+}
+
+export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+  return handleUpdate(request, params.id);
 }
 
 export async function DELETE(_request: NextRequest, { params }: { params: { id: string } }) {

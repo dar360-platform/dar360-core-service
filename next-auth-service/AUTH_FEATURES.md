@@ -11,7 +11,7 @@ This document captures the functional scope, architecture, and validation steps 
 - **Middleware**: `src/middleware.ts` applies rate limiting and requires NextAuth sessions for `/api/**` (excluding `api/auth/*` routes).
 
 ### Data Model
-`User` records capture role-based access (`Dar360Role` enum), optional RERA details, and invitation attribution (`invitedById` self-relationship). See `prisma/schema.prisma` for the full schema.
+`User` records capture role-based access (`Dar360Role` enum), optional RERA details, and invitation attribution (`invitedById` self-relationship). Password reset requests are stored in `PasswordResetToken` with expiry timestamps. See `prisma/schema.prisma` for the full schema.
 
 ## 2. Environment & Configuration
 1. Ensure `.env` contains:
@@ -35,7 +35,12 @@ This document captures the functional scope, architecture, and validation steps 
 2. **Login** (`POST /api/auth/[...nextauth]`)
    - NextAuth credentials checks email/password (bcrypt).
    - Returns session + JWT with `id`, `role`, and `fullName`.
-3. **Logout** (`POST /api/auth/logout`)
+3. **Forgot Password** (`POST /api/auth/forgot-password`)
+   - Idempotent endpoint; returns `{ success: true }` (and the token in non-production).
+   - Generates a short-lived token recorded in `PasswordResetToken`.
+4. **Reset Password** (`POST /api/auth/reset-password`)
+   - Validates token + password, hashes the password, and clears outstanding tokens.
+5. **Logout** (`POST /api/auth/logout`)
    - Clears session cookies client-side.
 4. **Session Enforcement**
    - Middleware validates JWT on all `/api/**` requests.
@@ -47,11 +52,13 @@ This document captures the functional scope, architecture, and validation steps 
 | --- | --- | --- | --- |
 | `/api/auth/register` | POST | Public | Create/activate user accounts |
 | `/api/auth/[...nextauth]` | GET, POST | Public | NextAuth handler (login) |
+| `/api/auth/forgot-password` | POST | Public | Generate password reset token |
+| `/api/auth/reset-password` | POST | Public | Reset password with token |
 | `/api/auth/logout` | POST | Authenticated | Clear session cookies |
 | `/api/users` | GET, POST | `AGENT` | List users / create new user |
-| `/api/users/:id` | GET, PUT, DELETE | `AGENT` | CRUD for specific user; delete performs soft-deactivate |
+| `/api/users/:id` | GET, PUT, PATCH, DELETE | `AGENT` | CRUD for specific user; delete performs soft-deactivate |
 | `/api/users/me` | GET, PUT | Any authenticated user | View/update own profile |
-| `/api/users/verify-rera` | POST | Any authenticated user | Save license number & timestamp |
+| `/api/users/verify-rera` | POST | Any authenticated user | Save RERA number (accepts `reraNumber` or `licenseNumber`) & timestamp |
 | `/api/users/owners` | GET | `AGENT` | List owners invited by current agent |
 | `/api/users/owners/invite` | POST | `AGENT` | Invite new owner (inactive until registration) |
 
@@ -73,10 +80,11 @@ Responses omit `passwordHash`. Errors surface as `{ error: string }` with releva
 ### Manual Smoke Tests
 1. **Registration** – POST new user, expect 201 + JSON response.
 2. **Login** – POST credentials to `/api/auth/[...nextauth]`, capture session cookie.
-3. **Protected Requests** – Call `/api/users/me` with session cookie; expect 200.
-4. **Role Gates** – Attempt `/api/users` with non-agent user; expect 403.
-5. **RERA Workflow** – POST to `/api/users/verify-rera`, then re-fetch `/api/users/me` to verify fields.
-6. **Owner Invitation** – Agent invites owner, invited email appears in `/api/users/owners`, registering as owner reactivates and marks `invitedById`.
+3. **Forgot/Reset Password** – Trigger `/api/auth/forgot-password`, capture token (dev/test), use `/api/auth/reset-password` to set new password, and re-login.
+4. **Protected Requests** – Call `/api/users/me` with session cookie; expect 200.
+5. **Role Gates** – Attempt `/api/users` with non-agent user; expect 403.
+6. **RERA Workflow** – POST to `/api/users/verify-rera` with `reraNumber`, then re-fetch `/api/users/me` to verify fields.
+7. **Owner Invitation** – Agent invites owner, invited email appears in `/api/users/owners`, registering as owner reactivates and marks `invitedById`.
 
 ### Automated
 - Run `pnpm lint` and `pnpm test` (Vitest) to check service logic, auth flows, and all API handlers.

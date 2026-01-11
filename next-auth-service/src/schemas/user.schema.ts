@@ -63,8 +63,23 @@ export const userFiltersSchema = z.object({
     .transform((value) => (value === undefined ? undefined : value === "true")),
 });
 
-export const verifyReraSchema = z.object({
-  licenseNumber: z.string().min(3).max(64),
+export const verifyReraSchema = z
+  .object({
+    licenseNumber: z.string().min(3).max(64).optional(),
+    reraNumber: z.string().min(3).max(64).optional(),
+  })
+  .refine((value) => value.licenseNumber || value.reraNumber, {
+    message: "A license number is required",
+    path: ["licenseNumber"],
+  });
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().email(),
+});
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(1),
+  password: passwordSchema,
 });
 
 export const ownerInviteSchema = z.object({

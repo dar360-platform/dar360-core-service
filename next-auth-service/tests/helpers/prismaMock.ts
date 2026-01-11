@@ -4,6 +4,7 @@ type PrismaModelMock = Record<string, ReturnType<typeof vi.fn>>;
 
 type PrismaMock = {
   user: PrismaModelMock;
+  passwordResetToken: PrismaModelMock;
 };
 
 const createModelMock = (): PrismaModelMock => ({
@@ -12,10 +13,13 @@ const createModelMock = (): PrismaModelMock => ({
   create: vi.fn(),
   update: vi.fn(),
   findFirst: vi.fn(),
+  delete: vi.fn(),
+  deleteMany: vi.fn(),
 });
 
 export const prismaMock: PrismaMock = {
   user: createModelMock(),
+  passwordResetToken: createModelMock(),
 };
 
 export const resetPrismaMock = () => {

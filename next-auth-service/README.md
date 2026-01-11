@@ -26,10 +26,12 @@ pnpm prisma migrate dev
 
 ### API Highlights
 - `POST /api/auth/register` – public registration
+- `POST /api/auth/forgot-password` – issue reset token (returns token in non-production)
+- `POST /api/auth/reset-password` – complete password reset with a token
 - `POST /api/auth/[...nextauth]` – NextAuth credentials login
 - `POST /api/auth/logout` – clears session cookies
 - `GET/POST /api/users` – admin list/create users
-- `GET/PUT/DELETE /api/users/:id` – admin user management
+- `GET/PUT/PATCH/DELETE /api/users/:id` – admin user management
 - `GET/PUT /api/users/me` – current user profile
 - `POST /api/users/verify-rera` – RERA verification for current user
 - `GET /api/users/owners` – invited owners for an agent

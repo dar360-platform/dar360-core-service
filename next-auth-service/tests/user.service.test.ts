@@ -13,6 +13,8 @@ import {
   inviteOwner,
   listUsers,
   registerUser,
+  requestPasswordReset,
+  resetPassword,
   updateCurrentUser,
   updateUser,
   verifyRera,
@@ -254,7 +256,7 @@ describe("user.service", () => {
         }),
       );
 
-      const result = await verifyRera("u1", { licenseNumber: "RERA-123" });
+      const result = await verifyRera("u1", { reraNumber: "RERA-123" });
 
       expect(prismaMock.user.update).toHaveBeenCalledWith({
         where: { id: "u1" },
@@ -264,6 +266,83 @@ describe("user.service", () => {
         },
       });
       expect(result).toMatchObject({ reraLicenseNumber: "RERA-123" });
+    });
+  });
+
+  describe("requestPasswordReset", () => {
+    it("creates reset token when user exists", async () => {
+      const user = createUserFixture({ id: "user-1", email: "agent@example.com" });
+      const buffer = Buffer.alloc(32, "a");
+      const expectedToken = buffer.toString("hex");
+
+      prismaMock.user.findUnique.mockResolvedValueOnce(user);
+      const randomSpy = vi.spyOn(crypto, "randomBytes").mockReturnValueOnce(buffer);
+      prismaMock.passwordResetToken.create.mockResolvedValueOnce({});
+
+      const result = await requestPasswordReset({ email: user.email });
+
+      expect(randomSpy).toHaveBeenCalledWith(32);
+      expect(prismaMock.passwordResetToken.deleteMany).toHaveBeenCalledWith({ where: { userId: user.id } });
+      expect(prismaMock.passwordResetToken.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          token: expectedToken,
+          userId: user.id,
+        }),
+      });
+      expect(result).toMatchObject({ success: true, token: expectedToken });
+
+      randomSpy.mockRestore();
+    });
+
+    it("silently succeeds when user not found", async () => {
+      prismaMock.user.findUnique.mockResolvedValueOnce(null);
+
+      const result = await requestPasswordReset({ email: "missing@example.com" });
+
+      expect(result).toEqual({ success: true });
+      expect(prismaMock.passwordResetToken.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("resetPassword", () => {
+    it("resets password with valid token", async () => {
+      const tokenRecord = {
+        id: "token-1",
+        token: "reset-token",
+        userId: "user-1",
+        expiresAt: new Date(Date.now() + 60_000),
+        createdAt: new Date(),
+      };
+      prismaMock.passwordResetToken.findUnique.mockResolvedValueOnce(tokenRecord);
+      prismaMock.user.update.mockResolvedValueOnce(createUserFixture({ id: "user-1" }));
+
+      const result = await resetPassword({ token: "reset-token", password: "NewPass123!" });
+
+      expect(hashMock).toHaveBeenCalledWith("NewPass123!", expect.any(Number));
+      expect(prismaMock.user.update).toHaveBeenCalledWith({
+        where: { id: "user-1" },
+        data: { passwordHash: "hashed-password" },
+      });
+      expect(prismaMock.passwordResetToken.deleteMany).toHaveBeenCalledWith({ where: { userId: "user-1" } });
+      expect(result).toMatchObject({ id: "user-1" });
+    });
+
+    it("throws when token invalid", async () => {
+      prismaMock.passwordResetToken.findUnique.mockResolvedValueOnce(null);
+
+      await expect(resetPassword({ token: "invalid", password: "Pass1234!" })).rejects.toBeInstanceOf(HttpError);
+    });
+
+    it("throws when token expired", async () => {
+      prismaMock.passwordResetToken.findUnique.mockResolvedValueOnce({
+        id: "token-1",
+        token: "expired",
+        userId: "user-1",
+        expiresAt: new Date(Date.now() - 60_000),
+        createdAt: new Date(),
+      });
+
+      await expect(resetPassword({ token: "expired", password: "Pass1234!" })).rejects.toBeInstanceOf(HttpError);
     });
   });
 
