@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DAR360 API Test Helper</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
+        .section { background: white; padding: 20px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { color: #333; }
+        h2 { color: #666; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; margin: 5px; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        input { padding: 10px; margin: 5px; border: 1px solid #ddd; border-radius: 5px; width: 250px; }
+        .output { background: #1e1e1e; color: #0f0; padding: 15px; border-radius: 5px; font-family: monospace; white-space: pre-wrap; max-height: 300px; overflow-y: auto; margin-top: 10px; }
+        .success { color: #4caf50; }
+        .error { color: #f44336; }
+        .info { color: #2196f3; }
+    </style>
+</head>
+<body>
+    <h1>DAR360 API Test Helper</h1>
+
+    <!-- Login Section -->
+    <div class="section">
+        <h2>1. Authentication</h2>
+        <input type="email" id="loginEmail" placeholder="Email" value="agent@test.com">
+        <input type="password" id="loginPassword" placeholder="Password" value="Test1234!">
+        <button onclick="login()">Login</button>
+        <button onclick="listUsers()">List Users</button>
+        <div id="loginOutput" class="output"></div>
+    </div>
+
+    <!-- Property & Contract -->
+    <div class="section">
+        <h2>2. Property & Contract</h2>
+        <button onclick="createProperty()">Create Test Property</button>
+        <button onclick="createContract()">Create Contract</button>
+        <button onclick="listContracts()">List Contracts</button>
+        <div id="testOutput" class="output"></div>
+    </div>
+
+    <!-- Contract Workflow -->
+    <div class="section">
+        <h2>3. Contract Signing Workflow</h2>
+        <input type="text" id="contractId" placeholder="Contract ID">
+        <button onclick="generatePDF()">1. Generate PDF</button>
+        <button onclick="sendOTP()">2. Send OTP</button>
+        <input type="text" id="otpCode" placeholder="OTP Code">
+        <button onclick="verifyOTP()">3. Verify OTP</button>
+        <button onclick="getContract()">Get Contract Details</button>
+        <div id="workflowOutput" class="output"></div>
+    </div>
+
+    <!-- Notifications -->
+    <div class="section">
+        <h2>4. Test Notifications</h2>
+        <button onclick="testSMS()">Test SMS</button>
+        <button onclick="testEmail()">Test Email</button>
+        <div id="notifOutput" class="output"></div>
+    </div>
+
+    <script>
+        let propertyId = null;
+        let contractId = null;
+
+        function log(outputId, message, type = 'info') {
+            const output = document.getElementById(outputId);
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'success' ? 'success' : type === 'error' ? 'error' : 'info';
+            output.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+            output.scrollTop = output.scrollHeight;
+        }
+
+        async function login() {
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+            log('loginOutput', 'Attempting login...', 'info');
+
+            try {
+                const csrfResponse = await fetch('/api/auth/csrf');
+                const csrfData = await csrfResponse.json();
+                const csrfToken = csrfData.csrfToken;
+
+                const formData = new URLSearchParams();
+                formData.append('email', email);
+                formData.append('password', password);
+                formData.append('csrfToken', csrfToken);
+                formData.append('callbackUrl', window.location.origin);
+                formData.append('json', 'true');
+
+                const response = await fetch('/api/auth/callback/credentials', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    credentials: 'include',
+                    body: formData
+                });
+
+                const data = await response.json();
+                if (response.ok && data.url) {
+                    log('loginOutput', '✅ Login successful!', 'success');
+                } else {
+                    log('loginOutput', '❌ Login failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                log('loginOutput', '❌ Error: ' + error.message, 'error');
+            }
+        }
+
+        async function listUsers() {
+            log('testOutput', 'Fetching users...', 'info');
+            try {
+                const response = await fetch('/api/users', { credentials: 'include' });
+                const data = await response.json();
+                if (response.ok) {
+                    log('testOutput', '✅ Found ' + data.data.length + ' users', 'success');
+                    log('testOutput', JSON.stringify(data, null, 2), 'info');
+                } else {
+                    log('testOutput', '❌ Error: ' + (data.error || 'Failed'), 'error');
+                }
+            } catch (error) {
+                log('testOutput', '❌ Error: ' + error.message, 'error');
+            }
+        }
+
+        async function createProperty() {
+            log('testOutput', 'Creating test property...', 'info');
+            try {
+                const sessionRes = await fetch('/api/auth/session');
+                const session = await sessionRes.json();
+                if (!session || !session.user) {
+                    log('testOutput', '⚠️ Not logged in! Please login first.', 'error');
+                    return;
+                }
+
+                const response = await fetch('/api/properties', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        agentId: session.user.id,
+                        title: 'Test Villa ' + Date.now(),
+                        description: 'Auto-generated test property',
+                        type: 'VILLA',
+                        bedrooms: 3,
+                        bathrooms: 2,
+                        rentAmount: 100000,
+                        addressLine: 'Dubai Marina Walk',
+                        areaName: 'Dubai Marina',
+                        amenities: ['Pool', 'Gym']
+                    })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    propertyId = data.data.id;
+                    log('testOutput', '✅ Property created! ID: ' + propertyId, 'success');
+                } else {
+                    log('testOutput', '❌ Error: ' + JSON.stringify(data), 'error');
+                }
+            } catch (error) {
+                log('testOutput', '❌ Error: ' + error.message, 'error');
+            }
+        }
+
+        async function createContract() {
+            if (!propertyId) {
+                log('testOutput', '⚠️ Please create a property first!', 'error');
+                return;
+            }
+            log('testOutput', 'Creating contract...', 'info');
+            try {
+                const sessionRes = await fetch('/api/auth/session');
+                const session = await sessionRes.json();
+                if (!session || !session.user) {
+                    log('testOutput', '⚠️ Not logged in!', 'error');
+                    return;
+                }
+
+                const response = await fetch('/api/contracts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        propertyId: propertyId,
+                        agentId: session.user.id,
+                        tenantName: 'Faisal Mahmud',
+                        tenantPhone: '+8801773725436',
+                        tenantEmail: 'faisal.mahmud@dar360.ae',
+                        tenantEmiratesId: '784-1234-1234567-1',
+                        startDate: '2026-02-01T00:00:00.000Z',
+                        endDate: '2027-02-01T00:00:00.000Z',
+                        rentAmount: 100000,
+                        depositAmount: 20000
+                    })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    contractId = data.data.id;
+                    document.getElementById('contractId').value = contractId;
+                    log('testOutput', '✅ Contract created! Number: ' + data.data.contractNumber, 'success');
+                } else {
+                    log('testOutput', '❌ Error: ' + JSON.stringify(data), 'error');
+                }
+            } catch (error) {
+                log('testOutput', '❌ Error: ' + error.message, 'error');
+            }
+        }
+
+        async function listContracts() {
+            log('testOutput', 'Fetching contracts...', 'info');
+            try {
+                const response = await fetch('/api/contracts', { credentials: 'include' });
+                const data = await response.json();
+                if (response.ok) {
+                    log('testOutput', '✅ Found ' + data.data.length + ' contracts', 'success');
+                    log('testOutput', JSON.stringify(data, null, 2), 'info');
+                } else {
+                    log('testOutput', '❌ Error: ' + JSON.stringify(data), 'error');
+                }
+            } catch (error) {
+                log('testOutput', '❌ Error: ' + error.message, 'error');
+            }
+        }
+
+        async function generatePDF() {
+            const id = document.getElementById('contractId').value;
+            if (!id) {
+                log('workflowOutput', '⚠️ Please enter a Contract ID!', 'error');
+                return;
+            }
+            log('workflowOutput', 'Generating PDF...', 'info');
+            try {
+                const response = await fetch(`/api/contracts/${id}/generate-pdf`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    log('workflowOutput', '✅ PDF generated!', 'success');
+                    log('workflowOutput', 'PDF URL: ' + data.data.pdfUrl, 'success');
+                } else {
+                    log('workflowOutput', '❌ Error: ' + JSON.stringify(data), 'error');
+                }
+            } catch (error) {
+                log('workflowOutput', '❌ Error: ' + error.message, 'error');
+            }
+        }
+
+        async function sendOTP() {
+            const id = document.getElementById('contractId').value;
+            if (!id) {
+                log('workflowOutput', '⚠️ Please enter a Contract ID!', 'error');
+                return;
+            }
+            log('workflowOutput', 'Sending OTP via SMS...', 'info');
+            try {
+                const response = await fetch(`/api/contracts/${id}/send-otp`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    log('workflowOutput', '✅ OTP sent! Check your phone.', 'success');
+                } else {
+                    log('workflowOutput', '❌ Error: ' + JSON.stringify(data), 'error');
+                }
+            } catch (error) {
+                log('workflowOutput', '❌ Error: ' + error.message, 'error');
+            }
+        }
+
+        async function verifyOTP() {
+            const id = document.getElementById('contractId').value;
+            const otp = document.getElementById('otpCode').value;
+            if (!id || !otp) {
+                log('workflowOutput', '⚠️ Please enter Contract ID and OTP!', 'error');
+                return;
+            }
+            log('workflowOutput', 'Verifying OTP...', 'info');
+            try {
+                const response = await fetch(`/api/contracts/${id}/verify-otp`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ otp: otp })
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    log('workflowOutput', '✅ Contract signed successfully!', 'success');
+                    log('workflowOutput', JSON.stringify(data, null, 2), 'info');
+                } else {
+                    log('workflowOutput', '❌ Error: ' + JSON.stringify(data), 'error');
+                }
+            } catch (error) {
+                log('workflowOutput', '❌ Error: ' + error.message, 'error');
+            }
+        }
+
+        async function getContract() {
+            const id = document.getElementById('contractId').value;
+            if (!id) {
+                log('workflowOutput', '⚠️ Please enter a Contract ID!', 'error');
+                return;
+            }
+            try {
+                const response = await fetch(`/api/contracts/${id}`, { credentials: 'include' });
+                const data = await response.json();
+                if (response.ok) {
+                    log('workflowOutput', '✅ Contract Status: ' + data.data.status, 'success');
+                    log('workflowOutput', JSON.stringify(data, null, 2), 'info');
+                } else {
+                    log('workflowOutput', '❌ Error: ' + JSON.stringify(data), 'error');
+                }
+            } catch (error) {
+                log('workflowOutput', '❌ Error: ' + error.message, 'error');
+            }
+        }
+
+        async function testSMS() {
+            log('notifOutput', 'Sending test SMS...', 'info');
+            try {
+                const response = await fetch('/api/notifications/sms', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        to: '+8801773725436',
+                        message: 'Test SMS from DAR360 at ' + new Date().toLocaleTimeString(),
+                        templateCode: 'test'
+                    })
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    log('notifOutput', '✅ SMS sent!', 'success');
+                } else {
+                    log('notifOutput', '❌ Error: ' + JSON.stringify(data), 'error');
+                }
+            } catch (error) {
+                log('notifOutput', '❌ Error: ' + error.message, 'error');
+            }
+        }
+
+        async function testEmail() {
+            log('notifOutput', 'Sending test email...', 'info');
+            try {
+                const response = await fetch('/api/notifications/email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        to: 'faisal.mahmud@dar360.ae',
+                        subject: 'Test Email from DAR360',
+                        html: '<h1>Test Email</h1><p>Sent at ' + new Date().toLocaleString() + '</p>',
+                        templateCode: 'test'
+                    })
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    log('notifOutput', '✅ Email sent!', 'success');
+                } else {
+                    log('notifOutput', '❌ Error: ' + JSON.stringify(data), 'error');
+                }
+            } catch (error) {
+                log('notifOutput', '❌ Error: ' + error.message, 'error');
+            }
+        }
+    </script>
+</body>
+</html>

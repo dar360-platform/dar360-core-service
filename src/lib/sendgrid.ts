@@ -1,26 +1,44 @@
-import sgMail from '@sendgrid/mail';
+import { Resend } from 'resend';
 
-sgMail.setApiKey(process.env.SENDGRID_API_KEY as string);
-const FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL || 'noreply@dar360.ae';
+const isMockMode = process.env.NODE_ENV === 'development' && !process.env.RESEND_API_KEY;
+
+const resend = isMockMode ? null : new Resend(process.env.RESEND_API_KEY as string);
+
+const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
 
 export async function sendEmail(to: string | string[], subject: string, html: string, text?: string) {
-  if (!process.env.SENDGRID_API_KEY) {
-    throw new Error('SENDGRID_API_KEY is not set in environment variables');
+  // MOCK MODE for development without Resend credentials
+  if (isMockMode) {
+    console.log('📧 [MOCK EMAIL] Would send to:', to);
+    console.log('📧 [MOCK EMAIL] Subject:', subject);
+    console.log('📧 [MOCK EMAIL] Body:', text || html.substring(0, 100) + '...');
+    return;
   }
 
-  const msg = {
-    to,
-    from: FROM_EMAIL,
-    subject,
-    html,
-    text: text || html,
-  };
+  // REAL MODE with Resend
+  if (!process.env.RESEND_API_KEY) {
+    throw new Error('RESEND_API_KEY is not set in environment variables');
+  }
+
+  const recipients = Array.isArray(to) ? to : [to];
 
   try {
-    await sgMail.send(msg);
-    console.log(`Email sent to ${to} with subject: ${subject}`);
+    const { data, error } = await resend!.emails.send({
+      from: FROM_EMAIL,
+      to: recipients,
+      subject,
+      html,
+      text: text || html,
+    });
+
+    if (error) {
+      console.error(`❌ Error sending email to ${to}:`, error);
+      throw error;
+    }
+
+    console.log(`✅ Email sent to ${to} with subject: ${subject}`);
   } catch (error: any) {
-    console.error(`Error sending email to ${to}:`, error.response?.body || error);
+    console.error(`❌ Error sending email to ${to}:`, error);
     throw error;
   }
 }
