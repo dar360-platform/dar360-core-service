@@ -38,6 +38,7 @@ export async function GET(request: NextRequest) {
           reraLicenseNumber: true,
           reraVerifiedAt: true,
           agencyName: true,
+          emiratesId: true,
           isActive: true,
           createdAt: true,
         },
