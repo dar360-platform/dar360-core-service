@@ -70,11 +70,14 @@ export async function POST(request: NextRequest) {
     // Hash password
     const passwordHash = await bcrypt.hash(validated.password, 12);
 
+    // Construct fullName from either fullName or firstName + lastName
+    const fullName = validated.fullName || `${validated.firstName} ${validated.lastName}`;
+
     const user = await prisma.user.create({
       data: {
         email: validated.email.toLowerCase(),
         passwordHash,
-        fullName: validated.fullName,
+        fullName,
         phone: validated.phone,
         role: validated.role,
         reraLicenseNumber: validated.reraLicenseNumber,

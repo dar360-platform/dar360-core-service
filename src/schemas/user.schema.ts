@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { Dar360Role } from '@prisma/client';
 
-export const userSchema = z.object({
+// Base schema without refinement
+const userSchemaBase = z.object({
   email: z.string().email(),
   password: z.string().min(8, 'Password must be at least 8 characters long'),
   fullName: z.string().min(1, 'Full name is required').optional(),
@@ -13,7 +14,10 @@ export const userSchema = z.object({
   reraBrokerId: z.string().optional(), // Frontend field name alias
   agencyName: z.string().optional(),
   emiratesId: z.string().optional(), // For owners/tenants
-}).refine((data) => {
+});
+
+// Create schema with refinement
+export const userSchema = userSchemaBase.refine((data) => {
   // Require fullName or (firstName and lastName)
   return data.fullName || (data.firstName && data.lastName);
 }, {
@@ -21,7 +25,8 @@ export const userSchema = z.object({
   path: ['fullName'],
 });
 
-export const updateUserSchema = userSchema.partial().omit({ password: true }).extend({
+// Update schema based on base schema (without refinement) to allow .partial()
+export const updateUserSchema = userSchemaBase.partial().omit({ password: true }).extend({
   isActive: z.boolean().optional(),
   emiratesId: z.string().optional(),
 });
