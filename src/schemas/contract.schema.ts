@@ -12,8 +12,13 @@ export const createContractSchema = z.object({
   endDate: z.string().datetime('Invalid end date format').transform((str) => new Date(str)),
   rentAmount: z.number().positive('Rent amount must be a positive number'),
   depositAmount: z.number().min(0, 'Deposit amount must be a non-negative number'),
+  numberOfCheques: z.number().int().min(1).max(12).optional().default(1),
+  cheques: z.number().int().min(1).max(12).optional(), // Frontend field name alias
   paymentTerms: z.string().optional(),
-});
+}).transform((data) => ({
+  ...data,
+  numberOfCheques: data.numberOfCheques || data.cheques || 1,
+}));
 
 export const updateContractSchema = z.object({
   propertyId: z.string().min(1, 'Property ID is required').optional(),
@@ -26,9 +31,14 @@ export const updateContractSchema = z.object({
   endDate: z.string().datetime('Invalid end date format').transform((str) => new Date(str)).optional(),
   rentAmount: z.number().positive('Rent amount must be a positive number').optional(),
   depositAmount: z.number().min(0, 'Deposit amount must be a non-negative number').optional(),
+  numberOfCheques: z.number().int().min(1).max(12).optional(),
+  cheques: z.number().int().min(1).max(12).optional(), // Frontend field name alias
   paymentTerms: z.string().optional(),
   status: z.nativeEnum(ContractStatus).optional(),
-}).partial(); // Allow partial updates
+}).partial().transform((data) => ({
+  ...data,
+  numberOfCheques: data.numberOfCheques || data.cheques,
+})); // Allow partial updates
 
 export const sendOtpSchema = z.object({
   // No specific fields needed for sending OTP, contractId is from path

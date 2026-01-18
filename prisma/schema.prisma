@@ -263,8 +263,9 @@ model Contract {
   endDate           DateTime       @map("end_date") @db.Date
   rentAmount        Decimal        @map("rent_amount") @db.Decimal(12, 2)
   depositAmount     Decimal        @map("deposit_amount") @db.Decimal(12, 2)
+  numberOfCheques   Int            @default(1) @map("number_of_cheques")
   paymentTerms      String?        @map("payment_terms")
-  
+
   status            ContractStatus @default(DRAFT)
   
   pdfUrl            String?        @map("pdf_url")
