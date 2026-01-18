@@ -50,3 +50,12 @@ node_modules/
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+
+# Maven/Java build artifacts
+target/
+*.class
+*.jar
+*.war
+.mvn/
+mvnw
+mvnw.cmd
