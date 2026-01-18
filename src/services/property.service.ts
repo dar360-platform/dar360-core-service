@@ -4,13 +4,22 @@ import { searchPropertySchema } from '@/schemas/property.schema';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
 
+type PropertyWithRelations = Prisma.PropertyGetPayload<{
+  include: {
+    images: true;
+    agent: { select: { id: true; fullName: true; email: true; phone: true; agencyName: true } };
+    owner: { select: { id: true; fullName: true; email: true; phone: true } };
+    _count: { select: { viewings: true } };
+  };
+}>;
+
 async function create(data: Prisma.PropertyUncheckedCreateInput): Promise<Property> {
   return db.property.create({ data });
 }
 
 type SearchParams = z.infer<typeof searchPropertySchema> & { agentId?: string; ownerId?: string; };
 
-async function search(params: SearchParams): Promise<{ data: Property[], pagination: any }> {
+async function search(params: SearchParams): Promise<{ data: PropertyWithRelations[], pagination: any }> {
   const { page = 1, limit = 10, type, status, bedrooms_min, bedrooms_max, rent_min, rent_max, area_min, area_max, areaName, agentId, ownerId } = params;
   
   const where: Prisma.PropertyWhereInput = {};
@@ -45,9 +54,28 @@ async function search(params: SearchParams): Promise<{ data: Property[], paginat
       take: limit,
       orderBy: { createdAt: 'desc' },
       include: {
-        images: {
-          where: { isPrimary: true },
-          take: 1
+        images: true,
+        agent: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phone: true,
+            agencyName: true,
+          }
+        },
+        owner: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phone: true,
+          }
+        },
+        _count: {
+          select: {
+            viewings: true,
+          }
         }
       }
     }),
@@ -65,7 +93,7 @@ async function search(params: SearchParams): Promise<{ data: Property[], paginat
   };
 }
 
-async function getPropertyById(id: string): Promise<Property | null> {
+async function getPropertyById(id: string): Promise<PropertyWithRelations | null> {
   return db.property.findUnique({ 
     where: { id },
     include: {
@@ -85,6 +113,11 @@ async function getPropertyById(id: string): Promise<Property | null> {
           fullName: true,
           email: true,
           phone: true,
+        }
+      },
+      _count: {
+        select: {
+          viewings: true,
         }
       }
     }
@@ -153,6 +186,20 @@ async function trackShareClick(token: string) {
             select: {
               fullName: true,
               agencyName: true,
+              email: true,
+              phone: true,
+            }
+          },
+          owner: {
+            select: {
+              fullName: true,
+              email: true,
+              phone: true,
+            }
+          },
+          _count: {
+            select: {
+              viewings: true,
             }
           }
         }

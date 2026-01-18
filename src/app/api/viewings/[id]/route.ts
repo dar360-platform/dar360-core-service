@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { viewingService } from '@/services/viewing.service';
 import { updateViewingSchema } from '@/schemas/viewing.schema';
+import { combineDateAndTime, toFrontendViewing } from '@/lib/frontend-mappers';
 
 // GET /api/viewings/[id] - Get viewing by ID
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    return NextResponse.json({ data: viewing });
+    return NextResponse.json({ data: toFrontendViewing(viewing) });
   } catch (error) {
     console.error('GET /api/viewings/[id] error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -41,7 +42,18 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     const { id } = await params;
     const body = await request.json();
-    const validated = updateViewingSchema.parse(body);
+    const normalizedBody = {
+      ...body,
+      ...(body.scheduledAt
+        ? {}
+        : body.date && body.time
+          ? { scheduledAt: combineDateAndTime(body.date, body.time) }
+          : {}),
+    };
+    delete (normalizedBody as any).date;
+    delete (normalizedBody as any).time;
+
+    const validated = updateViewingSchema.parse(normalizedBody);
 
     const existingViewing = await viewingService.getViewingById(id);
     if (!existingViewing) {
@@ -53,8 +65,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const updatedViewing = await viewingService.updateViewing(id, validated);
-    return NextResponse.json({ data: updatedViewing });
+    await viewingService.updateViewing(id, validated);
+    const updatedViewing = await viewingService.getViewingById(id);
+    if (!updatedViewing) {
+      return NextResponse.json({ error: 'Viewing not found' }, { status: 404 });
+    }
+    return NextResponse.json({ data: toFrontendViewing(updatedViewing) });
   } catch (error: any) {
     if (error.name === 'ZodError') {
       return NextResponse.json({ error: 'Validation failed', details: error.errors }, { status: 400 });

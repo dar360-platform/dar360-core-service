@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { viewingService } from '@/services/viewing.service';
+import { toFrontendViewing } from '@/lib/frontend-mappers';
 import { z } from 'zod';
 
 const calendarViewQuerySchema = z.object({
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
       agentIdFilter
     );
 
-    return NextResponse.json({ data: viewings });
+    return NextResponse.json({ data: viewings.map((viewing) => toFrontendViewing(viewing)) });
   } catch (error: any) {
     if (error.name === 'ZodError') {
       return NextResponse.json({ error: 'Validation failed', details: error.errors }, { status: 400 });

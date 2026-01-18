@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { propertyService } from '@/services/property.service';
 import { updatePropertyStatusSchema } from '@/schemas/property.schema';
+import { toFrontendProperty } from '@/lib/frontend-mappers';
 
 // PUT /api/properties/[id]/status - Update property status
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -26,8 +27,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const updatedProperty = await propertyService.updatePropertyStatus(id, validated.status);
-    return NextResponse.json({ data: updatedProperty });
+    await propertyService.updatePropertyStatus(id, validated.status);
+    const updatedProperty = await propertyService.getPropertyById(id);
+    if (!updatedProperty) {
+      return NextResponse.json({ error: 'Property not found' }, { status: 404 });
+    }
+    return NextResponse.json({ data: toFrontendProperty(updatedProperty) });
   } catch (error: any) {
     if (error.name === 'ZodError') {
       return NextResponse.json({ error: 'Validation failed', details: error.errors }, { status: 400 });

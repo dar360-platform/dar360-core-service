@@ -4,6 +4,7 @@ import prisma from '@/lib/db';
 import { userSchema } from '@/schemas/user.schema';
 import { authOptions } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
+import { normalizeUserInput } from '@/lib/frontend-mappers';
 
 // GET /api/users - List users (admin only)
 export async function GET(request: NextRequest) {
@@ -66,12 +67,13 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const validated = userSchema.parse(body);
+    const normalized = normalizeUserInput(validated);
 
     // Hash password
     const passwordHash = await bcrypt.hash(validated.password, 12);
 
     // Construct fullName from either fullName or firstName + lastName
-    const fullName = validated.fullName || `${validated.firstName} ${validated.lastName}`;
+    const fullName = normalized.fullName || `${validated.firstName} ${validated.lastName}`;
 
     const user = await prisma.user.create({
       data: {
@@ -80,7 +82,7 @@ export async function POST(request: NextRequest) {
         fullName,
         phone: validated.phone,
         role: validated.role,
-        reraLicenseNumber: validated.reraLicenseNumber,
+        reraLicenseNumber: normalized.reraLicenseNumber,
         agencyName: validated.agencyName,
       },
       select: {

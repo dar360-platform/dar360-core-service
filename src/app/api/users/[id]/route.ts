@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { userService } from '@/services/user.service';
 import { updateUserSchema } from '@/schemas/user.schema';
 import { authOptions } from '@/lib/auth';
+import { normalizeUserInput } from '@/lib/frontend-mappers';
 
 export async function GET(
   request: NextRequest,
@@ -46,8 +47,9 @@ export async function PUT(
     
     // Validate body
     const validated = updateUserSchema.parse(body);
+    const normalized = normalizeUserInput(validated);
 
-    const updatedUser = await userService.updateUser(id, validated);
+    const updatedUser = await userService.updateUser(id, normalized);
 
     return NextResponse.json({ data: updatedUser });
   } catch (error: any) {

@@ -3,25 +3,12 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { viewingService } from '@/services/viewing.service';
 import { createViewingSchema, searchViewingSchema } from '@/schemas/viewing.schema';
+import { combineDateAndTime, toFrontendViewing } from '@/lib/frontend-mappers';
 
 // GET /api/viewings - List viewings
 export async function GET(request: NextRequest) {
   try {
-    let session = await getServerSession(authOptions);
-    
-    // Bypassing Authentication for Development
-    if (process.env.NODE_ENV === 'development' && !session) {
-      session = {
-        user: {
-          id: 'clerk_user_id_placeholder', // mock user id
-          role: 'ADMIN', // Using ADMIN to see all properties in dev
-          name: 'Dev Admin',
-          email: 'dev@admin.com',
-          reraVerified: true,
-        },
-        expires: '2099-01-01T00:00:00.000Z',
-      };
-    }
+    const session = await getServerSession(authOptions);
 
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -45,7 +32,8 @@ export async function GET(request: NextRequest) {
       agentId: agentIdFilter,
     });
 
-    return NextResponse.json({ data, pagination });
+    const mapped = data.map((viewing) => toFrontendViewing(viewing));
+    return NextResponse.json({ data: mapped, pagination });
   } catch (error: any) {
     if (error.name === 'ZodError') {
       return NextResponse.json({ error: 'Validation failed', details: error.errors }, { status: 400 });
@@ -58,21 +46,7 @@ export async function GET(request: NextRequest) {
 // POST /api/viewings - Schedule viewing
 export async function POST(request: NextRequest) {
   try {
-    let session = await getServerSession(authOptions);
-
-    // Bypassing Authentication for Development
-    if (process.env.NODE_ENV === 'development' && !session) {
-      session = {
-        user: {
-          id: 'clerk_user_id_placeholder', // mock user id
-          role: 'AGENT',
-          name: 'Dev Agent',
-          email: 'dev@agent.com',
-          reraVerified: true,
-        },
-        expires: '2099-01-01T00:00:00.000Z',
-      };
-    }
+    const session = await getServerSession(authOptions);
 
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -84,14 +58,30 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const validated = createViewingSchema.parse(body);
+    const normalizedBody = {
+      ...body,
+      ...(body.scheduledAt
+        ? {}
+        : body.date && body.time
+          ? { scheduledAt: combineDateAndTime(body.date, body.time) }
+          : {}),
+    };
+    delete (normalizedBody as any).date;
+    delete (normalizedBody as any).time;
+
+    const validated = createViewingSchema.parse(normalizedBody);
 
     const viewing = await viewingService.createViewing({
       ...validated,
       agentId: session.user.id, // Assign current agent as scheduler
     });
 
-    return NextResponse.json({ data: viewing }, { status: 201 });
+    const fullViewing = await viewingService.getViewingById(viewing.id);
+    const responseViewing = fullViewing
+      ? toFrontendViewing(fullViewing)
+      : toFrontendViewing({ ...(viewing as any), property: null });
+
+    return NextResponse.json({ data: responseViewing }, { status: 201 });
   } catch (error: any) {
     if (error.name === 'ZodError') {
       return NextResponse.json({ error: 'Validation failed', details: error.errors }, { status: 400 });

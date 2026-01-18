@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { viewingService } from '@/services/viewing.service';
 import { updateViewingOutcomeSchema } from '@/schemas/viewing.schema';
+import { normalizeViewingOutcomeInput, toFrontendViewing } from '@/lib/frontend-mappers';
 
 // PUT /api/viewings/[id]/outcome - Record outcome
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -26,12 +27,18 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const updatedViewing = await viewingService.updateViewingOutcome(
+    const normalizedOutcome = normalizeViewingOutcomeInput(validated.outcome);
+    await viewingService.updateViewingOutcome(
       id,
-      validated.outcome,
+      normalizedOutcome.outcome,
       validated.notes,
+      normalizedOutcome.status,
     );
-    return NextResponse.json({ data: updatedViewing });
+    const updatedViewing = await viewingService.getViewingById(id);
+    if (!updatedViewing) {
+      return NextResponse.json({ error: 'Viewing not found' }, { status: 404 });
+    }
+    return NextResponse.json({ data: toFrontendViewing(updatedViewing) });
   } catch (error: any) {
     if (error.name === 'ZodError') {
       return NextResponse.json({ error: 'Validation failed', details: error.errors }, { status: 400 });

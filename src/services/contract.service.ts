@@ -28,8 +28,10 @@ export class ContractService {
     tenantEmiratesId: string;
     startDate: Date;
     endDate: Date;
-    rentAmount: number;
-    depositAmount: number;
+    rentAmount?: number;
+    depositAmount?: number;
+    numberOfCheques?: number;
+    paymentTerms?: string;
   }) {
     const property = await propertyService.getPropertyById(data.propertyId); // Using propertyService
     // const property = await prisma.property.findUnique({ // Original from document
@@ -40,6 +42,9 @@ export class ContractService {
     if (!property) throw new Error('Property not found');
 
     const contractNumber = await this.generateContractNumber();
+    const rentAmount = data.rentAmount ?? Number(property.rentAmount);
+    const depositAmount = data.depositAmount ?? Number(property.depositAmount ?? 0);
+    const numberOfCheques = data.numberOfCheques ?? property.numberOfCheques ?? 1;
 
     return prisma.contract.create({
       data: {
@@ -53,8 +58,10 @@ export class ContractService {
         tenantEmiratesId: data.tenantEmiratesId,
         startDate: data.startDate,
         endDate: data.endDate,
-        rentAmount: data.rentAmount,
-        depositAmount: data.depositAmount,
+        rentAmount,
+        depositAmount,
+        numberOfCheques,
+        paymentTerms: data.paymentTerms,
         status: ContractStatus.DRAFT,
       },
     });
@@ -250,7 +257,16 @@ export class ContractService {
         skip: (page - 1) * limit,
         take: limit,
         include: {
-          property: { select: { id: true, title: true, addressLine: true } },
+          property: {
+            select: {
+              id: true,
+              title: true,
+              buildingName: true,
+              unit: true,
+              areaName: true,
+              addressLine: true
+            }
+          },
           agent: { select: { id: true, fullName: true, agencyName: true } },
           owner: { select: { id: true, fullName: true } },
         },

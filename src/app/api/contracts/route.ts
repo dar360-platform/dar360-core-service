@@ -3,26 +3,12 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { contractService } from '@/services/contract.service';
 import { createContractSchema, searchContractSchema } from '@/schemas/contract.schema';
-import { ContractStatus } from '@prisma/client';
+import { normalizeContractInput, toFrontendContract } from '@/lib/frontend-mappers';
 
 // GET /api/contracts - List contracts
 export async function GET(request: NextRequest) {
   try {
-    let session = await getServerSession(authOptions);
-    
-    // Bypassing Authentication for Development
-    if (process.env.NODE_ENV === 'development' && !session) {
-      session = {
-        user: {
-          id: 'clerk_user_id_placeholder', // mock user id
-          role: 'ADMIN', // Using ADMIN to see all contracts in dev
-          name: 'Dev Admin',
-          email: 'dev@admin.com',
-          reraVerified: true,
-        },
-        expires: '2099-01-01T00:00:00.000Z',
-      };
-    }
+    const session = await getServerSession(authOptions);
 
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -51,7 +37,8 @@ export async function GET(request: NextRequest) {
       ownerId: ownerIdFilter,
     });
 
-    return NextResponse.json({ data, pagination });
+    const mapped = data.map((contract) => toFrontendContract(contract));
+    return NextResponse.json({ data: mapped, pagination });
   } catch (error: any) {
     if (error.name === 'ZodError') {
       return NextResponse.json({ error: 'Validation failed', details: error.errors }, { status: 400 });
@@ -64,21 +51,7 @@ export async function GET(request: NextRequest) {
 // POST /api/contracts - Create contract
 export async function POST(request: NextRequest) {
   try {
-    let session = await getServerSession(authOptions);
-
-    // Bypassing Authentication for Development
-    if (process.env.NODE_ENV === 'development' && !session) {
-      session = {
-        user: {
-          id: 'clerk_user_id_placeholder', // mock user id
-          role: 'AGENT',
-          name: 'Dev Agent',
-          email: 'dev@agent.com',
-          reraVerified: true,
-        },
-        expires: '2099-01-01T00:00:00.000Z',
-      };
-    }
+    const session = await getServerSession(authOptions);
 
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -90,14 +63,23 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const validated = createContractSchema.parse(body);
+    const normalizedBody = normalizeContractInput(body);
+    const validated = createContractSchema.parse({
+      ...normalizedBody,
+      agentId: session.user.id,
+    });
 
     const contract = await contractService.create({
       ...validated,
       agentId: session.user.id, // Assign current agent as creator
     });
 
-    return NextResponse.json({ data: contract }, { status: 201 });
+    const fullContract = await contractService.getContractById(contract.id);
+    const responseContract = fullContract
+      ? toFrontendContract(fullContract)
+      : toFrontendContract({ ...(contract as any), property: null });
+
+    return NextResponse.json({ data: responseContract }, { status: 201 });
   } catch (error: any) {
     if (error.name === 'ZodError') {
       return NextResponse.json({ error: 'Validation failed', details: error.errors }, { status: 400 });

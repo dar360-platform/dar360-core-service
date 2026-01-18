@@ -3,32 +3,24 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { propertyService } from '@/services/property.service';
 import { createPropertySchema, searchPropertySchema } from '@/schemas/property.schema';
+import { normalizePropertyInput, toFrontendProperty } from '@/lib/frontend-mappers';
 
 // GET /api/properties - List properties
 export async function GET(request: NextRequest) {
   try {
-    let session = await getServerSession(authOptions);
-
-    // Bypassing Authentication for Development
-    if (process.env.NODE_ENV === 'development' && !session) {
-      session = {
-        user: {
-          id: 'clerk_user_id_placeholder', // mock user id
-          role: 'ADMIN', // Using ADMIN to see all properties in dev
-          name: 'Dev Admin',
-          email: 'dev@admin.com',
-          reraVerified: true,
-        },
-        expires: '2099-01-01T00:00:00.000Z',
-      };
-    }
+    const session = await getServerSession(authOptions);
 
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
-    const validatedParams = searchPropertySchema.parse(Object.fromEntries(searchParams));
+    const rawParams = Object.fromEntries(searchParams);
+    if (rawParams.area && !rawParams.areaName) {
+      rawParams.areaName = rawParams.area;
+    }
+
+    const validatedParams = searchPropertySchema.parse(rawParams);
 
     const { data, pagination } = await propertyService.search({
       agentId: session.user.role === 'AGENT' ? session.user.id : undefined, // Agents can only see their properties
@@ -36,7 +28,8 @@ export async function GET(request: NextRequest) {
       ...validatedParams,
     });
 
-    return NextResponse.json({ data, pagination });
+    const mapped = data.map((property) => toFrontendProperty(property));
+    return NextResponse.json({ data: mapped, pagination });
   } catch (error: any) {
     if (error.name === 'ZodError') {
       return NextResponse.json({ error: 'Validation failed', details: error.errors }, { status: 400 });
@@ -49,22 +42,8 @@ export async function GET(request: NextRequest) {
 // POST /api/properties - Create property
 export async function POST(request: NextRequest) {
   try {
-    let session = await getServerSession(authOptions);
+    const session = await getServerSession(authOptions);
 
-    // Bypassing Authentication for Development
-    if (process.env.NODE_ENV === 'development' && !session) {
-      session = {
-        user: {
-          id: 'clerk_user_id_placeholder', // mock user id
-          role: 'AGENT',
-          name: 'Dev Agent',
-          email: 'dev@agent.com',
-          reraVerified: true,
-        },
-        expires: '2099-01-01T00:00:00.000Z',
-      };
-    }
-    
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -75,14 +54,20 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const validated = createPropertySchema.parse(body);
+    const normalizedInput = normalizePropertyInput(body);
+    const validated = createPropertySchema.parse(normalizedInput);
 
     const property = await propertyService.create({
       ...validated,
       agentId: session.user.id, // Assign current agent as creator
     });
 
-    return NextResponse.json({ data: property }, { status: 201 });
+    const fullProperty = await propertyService.getPropertyById(property.id);
+    const responseProperty = fullProperty
+      ? toFrontendProperty(fullProperty)
+      : toFrontendProperty({ ...(property as any), images: [], owner: null, agent: null, _count: { viewings: 0 } });
+
+    return NextResponse.json({ data: responseProperty }, { status: 201 });
   } catch (error: any) {
     if (error.name === 'ZodError') {
       return NextResponse.json({ error: 'Validation failed', details: error.errors }, { status: 400 });

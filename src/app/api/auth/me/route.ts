@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import prisma from '@/lib/db';
 import { authOptions } from '@/lib/auth';
 import { updateUserSchema } from '@/schemas/user.schema';
+import { normalizeUserInput } from '@/lib/frontend-mappers';
 
 // GET /api/auth/me - Get current user
 export async function GET(request: NextRequest) {
@@ -51,15 +52,16 @@ export async function PATCH(request: NextRequest) {
 
     const body = await request.json();
     const validated = updateUserSchema.parse(body);
+    const normalized = normalizeUserInput(validated);
 
     // Prevent email changes via this endpoint (require re-verification)
-    if (validated.email) {
-      delete (validated as any).email;
+    if (normalized.email) {
+      delete (normalized as any).email;
     }
 
     const updatedUser = await prisma.user.update({
       where: { id: session.user.id },
-      data: validated,
+      data: normalized,
       select: {
         id: true,
         email: true,

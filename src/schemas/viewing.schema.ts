@@ -20,7 +20,15 @@ export const searchViewingSchema = z.object({
 
 export const updateViewingSchema = createViewingSchema.partial();
 
+const frontendViewingOutcomeSchema = z.enum([
+  'interested',
+  'not_interested',
+  'no_show',
+  'offer_made',
+  'pending',
+]);
+
 export const updateViewingOutcomeSchema = z.object({
-  outcome: z.nativeEnum(ViewingOutcome),
+  outcome: z.union([z.nativeEnum(ViewingOutcome), frontendViewingOutcomeSchema]),
   notes: z.string().optional(),
 });

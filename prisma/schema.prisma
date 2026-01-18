@@ -147,9 +147,11 @@ model Property {
   rentAmount     Decimal        @map("rent_amount") @db.Decimal(12, 2)
   rentFrequency  RentFrequency  @default(YEARLY) @map("rent_frequency")
   depositAmount  Decimal?       @map("deposit_amount") @db.Decimal(12, 2)
+  numberOfCheques Int           @default(1) @map("number_of_cheques")
   
   addressLine    String         @map("address_line")
   buildingName   String?        @map("building_name")
+  unit           String?        @map("unit")
   areaName       String?        @map("area_name")
   city           String         @default("Dubai")
   latitude       Decimal?       @db.Decimal(10, 8)

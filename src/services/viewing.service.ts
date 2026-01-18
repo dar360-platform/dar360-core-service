@@ -1,4 +1,4 @@
-import { Prisma, Viewing, ViewingOutcome } from '@prisma/client';
+import { Prisma, Viewing, ViewingOutcome, ViewingStatus } from '@prisma/client';
 import db from '@/lib/db';
 import { add, sub } from 'date-fns';
 import { searchViewingSchema } from '@/schemas/viewing.schema';
@@ -59,6 +59,9 @@ async function searchViewings(params: SearchParams): Promise<{ data: Viewing[], 
             id: true,
             title: true,
             addressLine: true,
+            buildingName: true,
+            unit: true,
+            areaName: true,
           }
         }
       }
@@ -86,6 +89,9 @@ async function getViewingById(id: string): Promise<Viewing | null> {
           id: true,
           title: true,
           addressLine: true,
+          buildingName: true,
+          unit: true,
+          areaName: true,
         }
       }
     }
@@ -100,13 +106,18 @@ async function deleteViewing(id: string): Promise<Viewing> {
   return db.viewing.delete({ where: { id } });
 }
 
-async function updateViewingOutcome(id: string, outcome: ViewingOutcome, notes?: string): Promise<Viewing> {
+async function updateViewingOutcome(
+  id: string,
+  outcome: ViewingOutcome | null,
+  notes?: string,
+  status: ViewingStatus = ViewingStatus.COMPLETED
+): Promise<Viewing> {
   return db.viewing.update({
     where: { id },
     data: {
       outcome,
       notes,
-      status: 'COMPLETED', // Automatically mark viewing as completed
+      status,
     },
   });
 }
@@ -134,6 +145,9 @@ async function getCalendarViewings(start: Date, end: Date, agentId?: string): Pr
         select: {
           id: true,
           title: true,
+          buildingName: true,
+          unit: true,
+          areaName: true,
         }
       }
     }

@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { propertyService } from '@/services/property.service';
 import { updatePropertySchema } from '@/schemas/property.schema';
+import { normalizePropertyInput, toFrontendProperty } from '@/lib/frontend-mappers';
 
 // GET /api/properties/[id] - Get property by ID
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    return NextResponse.json({ data: property });
+    return NextResponse.json({ data: toFrontendProperty(property) });
   } catch (error) {
     console.error('GET /api/properties/[id] error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -41,7 +42,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     const { id } = await params;
     const body = await request.json();
-    const validated = updatePropertySchema.parse(body);
+    const normalizedInput = normalizePropertyInput(body);
+    const validated = updatePropertySchema.parse(normalizedInput);
 
     const existingProperty = await propertyService.getPropertyById(id);
     if (!existingProperty) {
@@ -53,8 +55,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const updatedProperty = await propertyService.updateProperty(id, validated);
-    return NextResponse.json({ data: updatedProperty });
+    await propertyService.updateProperty(id, validated);
+    const updatedProperty = await propertyService.getPropertyById(id);
+    if (!updatedProperty) {
+      return NextResponse.json({ error: 'Property not found' }, { status: 404 });
+    }
+    return NextResponse.json({ data: toFrontendProperty(updatedProperty) });
   } catch (error: any) {
     if (error.name === 'ZodError') {
       return NextResponse.json({ error: 'Validation failed', details: error.errors }, { status: 400 });
