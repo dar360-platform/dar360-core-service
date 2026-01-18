@@ -81,7 +81,10 @@ model User {
   reraLicenseNumber  String?   @map("rera_license_number")
   reraVerifiedAt     DateTime? @map("rera_verified_at")
   agencyName         String?   @map("agency_name")
-  
+
+  // Owner/Tenant-specific fields
+  emiratesId         String?   @map("emirates_id")
+
   // Owner invitation
   invitedById        String?   @map("invited_by")
   invitedBy          User?     @relation("InvitedUsers", fields: [invitedById], references: [id])

@@ -13,6 +13,7 @@ export class UserService {
     role?: Dar360Role;
     reraLicenseNumber?: string;
     agencyName?: string;
+    emiratesId?: string;
   }): Promise<Omit<User, 'passwordHash'>> {
     const passwordHash = await bcrypt.hash(data.passwordPlain, 12);
     const user = await prisma.user.create({
@@ -24,6 +25,7 @@ export class UserService {
         role: data.role || Dar360Role.TENANT,
         reraLicenseNumber: data.reraLicenseNumber,
         agencyName: data.agencyName,
+        emiratesId: data.emiratesId,
       },
       select: {
         id: true,
@@ -35,6 +37,7 @@ export class UserService {
         reraLicenseNumber: true,
         reraVerifiedAt: true,
         agencyName: true,
+        emiratesId: true,
         isActive: true,
         invitedById: true,
         updatedAt: true,
@@ -144,6 +147,7 @@ export class UserService {
           reraLicenseNumber: true,
           reraVerifiedAt: true,
           agencyName: true,
+          emiratesId: true,
           isActive: true,
           createdAt: true,
           invitedById: true,
@@ -167,6 +171,7 @@ export class UserService {
     role?: Dar360Role;
     reraLicenseNumber?: string;
     agencyName?: string;
+    emiratesId?: string;
     isActive?: boolean;
   }): Promise<Omit<User, 'passwordHash'>> {
     const user = await prisma.user.update({
@@ -181,6 +186,7 @@ export class UserService {
         reraLicenseNumber: true,
         reraVerifiedAt: true,
         agencyName: true,
+        emiratesId: true,
         isActive: true,
         invitedById: true,
         createdAt: true,

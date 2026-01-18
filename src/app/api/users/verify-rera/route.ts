@@ -5,8 +5,15 @@ import { authOptions } from '@/lib/auth';
 import { z } from 'zod';
 
 const reraSchema = z.object({
-  reraLicenseNumber: z.string().min(1).max(50),
+  reraLicenseNumber: z.string().min(1).max(50).optional(),
+  reraNumber: z.string().min(1).max(50).optional(), // Frontend field name alias
   agencyName: z.string().min(1).max(255),
+}).refine((data) => {
+  // Require either reraLicenseNumber or reraNumber
+  return data.reraLicenseNumber || data.reraNumber;
+}, {
+  message: 'RERA license number is required',
+  path: ['reraLicenseNumber'],
 });
 
 // POST /api/users/verify-rera
@@ -30,7 +37,11 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { reraLicenseNumber, agencyName } = reraSchema.parse(body);
+    const validated = reraSchema.parse(body);
+
+    // Handle both field names (frontend uses reraNumber, backend uses reraLicenseNumber)
+    const reraLicenseNumber = validated.reraLicenseNumber || validated.reraNumber!;
+    const agencyName = validated.agencyName;
 
     // Check if RERA number already used
     const existing = await prisma.user.findFirst({
