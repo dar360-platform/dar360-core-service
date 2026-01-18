@@ -8,7 +8,21 @@ import { ContractStatus } from '@prisma/client';
 // GET /api/contracts - List contracts
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    let session = await getServerSession(authOptions);
+    
+    // Bypassing Authentication for Development
+    if (process.env.NODE_ENV === 'development' && !session) {
+      session = {
+        user: {
+          id: 'clerk_user_id_placeholder', // mock user id
+          role: 'ADMIN', // Using ADMIN to see all contracts in dev
+          name: 'Dev Admin',
+          email: 'dev@admin.com',
+        },
+        expires: '2099-01-01T00:00:00.000Z',
+      };
+    }
+
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -19,7 +33,9 @@ export async function GET(request: NextRequest) {
     let agentIdFilter: string | undefined = undefined;
     let ownerIdFilter: string | undefined = undefined;
 
-    if (session.user.role === 'AGENT') {
+    if (session.user.role === 'ADMIN') {
+      // Admins can see all contracts, so no filter is applied.
+    } else if (session.user.role === 'AGENT') {
       agentIdFilter = session.user.id;
     } else if (session.user.role === 'OWNER') {
       ownerIdFilter = session.user.id;
@@ -47,7 +63,21 @@ export async function GET(request: NextRequest) {
 // POST /api/contracts - Create contract
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    let session = await getServerSession(authOptions);
+
+    // Bypassing Authentication for Development
+    if (process.env.NODE_ENV === 'development' && !session) {
+      session = {
+        user: {
+          id: 'clerk_user_id_placeholder', // mock user id
+          role: 'AGENT',
+          name: 'Dev Agent',
+          email: 'dev@agent.com',
+        },
+        expires: '2099-01-01T00:00:00.000Z',
+      };
+    }
+
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

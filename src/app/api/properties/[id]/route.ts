@@ -65,9 +65,21 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 // DELETE /api/properties/[id] - Delete property by ID
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const session = await getServerSession(authOptions);
+    let session = await getServerSession(authOptions);
+
+    // Bypassing Authentication for Development
+    if (process.env.NODE_ENV === 'development' && !session) {
+      session = {
+        user: {
+          id: 'clerk_user_id_placeholder', // mock user id
+          role: 'AGENT',
+          name: 'Dev Agent',
+          email: 'dev@agent.com',
+          reraVerified: true,
+        },
+        expires: '2099-01-01T00:00:00.000Z',
+      };
+    }
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
