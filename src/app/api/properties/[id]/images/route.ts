@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { propertyService } from '@/services/property.service';
 import { uploadPropertyImageSchema } from '@/schemas/property.schema';
-import { getSignedUploadUrl } from '@/lib/s3';
+import { getSignedUploadUrl, deleteS3Object } from '@/lib/s3';
 
 // POST /api/properties/[id]/images - Upload images
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -52,6 +52,50 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Validation failed', details: error.errors }, { status: 400 });
     }
     console.error('POST /api/properties/[id]/images error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+// DELETE /api/properties/[id]/images?imageId=... - Delete an image
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { id: propertyId } = await params;
+    const { searchParams } = new URL(request.url);
+    const imageId = searchParams.get('imageId');
+
+    if (!imageId) {
+      return NextResponse.json({ error: 'Image ID is required' }, { status: 400 });
+    }
+
+    const existingProperty = await propertyService.getPropertyById(propertyId);
+    if (!existingProperty) {
+      return NextResponse.json({ error: 'Property not found' }, { status: 404 });
+    }
+
+    // Only the agent who created the property or an admin can delete images
+    if (existingProperty.agentId !== session.user.id && session.user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    
+    const image = await propertyService.getPropertyImageById(imageId);
+    if (!image || image.propertyId !== propertyId) {
+      return NextResponse.json({ error: 'Image not found or does not belong to this property'}, { status: 404 });
+    }
+
+    // Delete from S3
+    await deleteS3Object(image.s3Key);
+
+    // Delete from database
+    await propertyService.deletePropertyImage(imageId);
+
+    return NextResponse.json({ message: 'Image deleted successfully' });
+  } catch (error: any) {
+    console.error('DELETE /api/properties/[id]/images error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

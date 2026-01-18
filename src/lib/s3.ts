@@ -154,3 +154,8 @@ export async function getSignedUploadUrl(fileName: string, contentType: string) 
 
   throw new Error('No storage provider configured');
 }
+
+// Alias for backward compatibility with property_viewing_api branch
+export async function deleteS3Object(key: string): Promise<void> {
+  return deleteFromS3(key);
+}

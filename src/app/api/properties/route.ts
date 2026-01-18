@@ -7,7 +7,22 @@ import { createPropertySchema, searchPropertySchema } from '@/schemas/property.s
 // GET /api/properties - List properties
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    let session = await getServerSession(authOptions);
+
+    // Bypassing Authentication for Development
+    if (process.env.NODE_ENV === 'development' && !session) {
+      session = {
+        user: {
+          id: 'clerk_user_id_placeholder', // mock user id
+          role: 'ADMIN', // Using ADMIN to see all properties in dev
+          name: 'Dev Admin',
+          email: 'dev@admin.com',
+          reraVerified: true,
+        },
+        expires: '2099-01-01T00:00:00.000Z',
+      };
+    }
+
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -34,7 +49,22 @@ export async function GET(request: NextRequest) {
 // POST /api/properties - Create property
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    let session = await getServerSession(authOptions);
+
+    // Bypassing Authentication for Development
+    if (process.env.NODE_ENV === 'development' && !session) {
+      session = {
+        user: {
+          id: 'clerk_user_id_placeholder', // mock user id
+          role: 'AGENT',
+          name: 'Dev Agent',
+          email: 'dev@agent.com',
+          reraVerified: true,
+        },
+        expires: '2099-01-01T00:00:00.000Z',
+      };
+    }
+    
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

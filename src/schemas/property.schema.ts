@@ -1,43 +1,52 @@
 import { z } from 'zod';
-import { PropertyType } from '@prisma/client';
+import { PropertyStatus, PropertyType, RentFrequency } from '@prisma/client';
 
-export const createPropertySchema = z.object({
-  agentId: z.string().min(1, 'Agent ID is required'),
-  ownerId: z.string().optional(),
-  title: z.string().min(1, 'Title is required'),
+export const propertySchema = z.object({
+  title: z.string().min(1, 'Title must be at least 1 characters long'),
   description: z.string().optional(),
   type: z.nativeEnum(PropertyType),
-  bedrooms: z.number().int().min(0, 'Bedrooms must be a non-negative integer'),
-  bathrooms: z.number().int().min(0, 'Bathrooms must be a non-negative integer'),
-  rentAmount: z.number().positive('Rent amount must be a positive number'),
+  status: z.nativeEnum(PropertyStatus).optional(),
+  bedrooms: z.coerce.number().int().min(0, 'Bedrooms must be a non-negative number'),
+  bathrooms: z.coerce.number().int().min(1, 'Bathrooms must be at least 1'),
+  areaSqft: z.coerce.number().positive('Area must be a positive number').optional(),
+  rentAmount: z.coerce.number().positive('Rent amount must be a positive number'),
+  rentFrequency: z.nativeEnum(RentFrequency).optional(),
+  depositAmount: z.coerce.number().positive('Deposit must be a positive number').optional(),
   addressLine: z.string().min(1, 'Address line is required'),
+  buildingName: z.string().optional(),
   areaName: z.string().optional(),
+  city: z.string().optional(),
+  latitude: z.coerce.number().optional(),
+  longitude: z.coerce.number().optional(),
   amenities: z.array(z.string()).optional(),
+  ownerId: z.string().cuid('Invalid owner ID').optional(),
 });
+
+export const createPropertySchema = propertySchema;
+
+export const updatePropertySchema = propertySchema.partial();
 
 export const searchPropertySchema = z.object({
-  type: z.nativeEnum(PropertyType).optional(),
-  minBedrooms: z.coerce.number().int().min(0).optional(),
-  maxBedrooms: z.coerce.number().int().min(0).optional(),
-  minRent: z.coerce.number().positive().optional(),
-  maxRent: z.coerce.number().positive().optional(),
-  areaName: z.string().optional(),
-  page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
+    type: z.nativeEnum(PropertyType).optional(),
+    status: z.nativeEnum(PropertyStatus).optional(),
+    bedrooms_min: z.coerce.number().int().min(0).optional(),
+    bedrooms_max: z.coerce.number().int().min(0).optional(),
+    rent_min: z.coerce.number().positive().optional(),
+    rent_max: z.coerce.number().positive().optional(),
+    area_min: z.coerce.number().positive().optional(),
+    area_max: z.coerce.number().positive().optional(),
+    areaName: z.string().optional(),
+    page: z.coerce.number().int().min(1).optional().default(1),
+    limit: z.coerce.number().int().min(1).max(100).optional().default(10),
 });
 
-export type CreatePropertySchema = z.infer<typeof createPropertySchema>;
-export type SearchPropertySchema = z.infer<typeof searchPropertySchema>;
-
-export const updatePropertySchema = createPropertySchema.partial();
-export type UpdatePropertySchema = z.infer<typeof updatePropertySchema>;
+export const updatePropertyStatusSchema = z.object({
+  status: z.nativeEnum(PropertyStatus),
+});
 
 export const uploadPropertyImageSchema = z.object({
-  fileName: z.string().min(1, 'File name is required'),
-  contentType: z.string().min(1, 'Content type is required'),
+  fileName: z.string(),
+  contentType: z.string(),
   isPrimary: z.boolean().optional().default(false),
-  displayOrder: z.number().int().min(0).optional().default(0),
+  displayOrder: z.number().int().optional().default(0),
 });
-export type UploadPropertyImageSchema = z.infer<typeof uploadPropertyImageSchema>;
-
-
